@@ -1,0 +1,100 @@
+--Nạp dữ liệu
+--dulieuxettuyendaihoc.csv
+import pandas as pd
+df = pd.read_csv('dulieuxettuyendaihoc.csv',header=0,delimiter=',',encoding='utf-8')
+df
+
+--Câu 1. Có bao nhiêu khối thi (KT) trong trong dữ liệu.
+len(df['KT'].unique())
+
+df.rename(columns={
+    'TOANLOGICPHANTICH': 'LOGIC',
+    'GIAIQUYETVANDE': 'VANDE'
+}, inplace=True)
+--Câu 2. Vẽ Bar chart thống kê trung vị cột điểm T1 theo khối thi (KT) trên từng khu vực (KV)
+--Khối thi (KT) nào thống kê điểm T1 có ít khu vực (KV) nhất.
+--estimator=np.median là trung vị, lỡ xui hỏi cái khác chết.
+
+sns.barplot(x='KT', y='T1', hue='KV', data=df, errorbar=None, estimator=np.median)
+plt.show()
+
+--Câu 3. Trong T1, T2, T3, T4, T5, T6, NGONNGU, LOGIC. Cột nào có phân phối gần với phân phối chuẩn.
+sns.boxplot(data=df[['T1', 'T2', 'T3','T4','T5','T6','NGONNGU','LOGIC','VANDE']])
+plt.show()
+
+=> LOGIC đối xứng => Gần pp chuẩn.
+
+--Câu 4. Độ lệch của cột VANDE sau khi cột VANDE transform qua hàm lập phương.
+from scipy.stats import skew
+skew(df['VANDE'] ** 3)
+
+--Tạo mô hình
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import MinMaxScaler
+from sklearn.linear_model import LinearRegression
+from sklearn.pipeline import Pipeline
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+from sklearn import metrics
+
+X = df[['T3', 'T4','T5','T6','KT_mapped']].astype(float).values
+X_train, X_test, y_train, y_test = train_test_split(X,y,test_size=0.2,random_state=10)
+
+steps=[('minmaxscaler',MinMaxScaler()),('standardscaler',StandardScaler()),('model',LinearRegression())]
+pipe = Pipeline(steps)
+model = pipe.fit(X_train,y_train)
+model
+
+--Câu 5. 
+X_test.shape => (20,5)
+
+--Câu 6
+y_test_pred=pipe.predict(X_test)
+y_train_pred=pipe.predict(X_train)
+
+dfTrainValidation=pd.DataFrame(list(zip(
+                                      
+                                        y_train.flatten(),
+                                       y_train_pred.flatten())),
+                              columns=['y_train','y_train_predicted'])
+dfTrainValidation['Residual']=dfTrainValidation['y_train']-dfTrainValidation['y_train_predicted']
+#zip tạo data frame dựa trên mảng
+dfTrainValidation.iloc[2]
+
+--Câu 7 Thử hết cho các đáp án luôn.
+sns.histplot(data=dfTrainValidation,x='y_train_predicted',color='red',label='Forecast',kde=True)
+plt.show()
+
+--Câu 8
+T3 = 5.00
+T4 = 5.25
+T5 = 6.00
+T6 = 7.25
+KT_mapped = 2
+predicted_Logic = pipe.predict([[T3, T4,T5,T6,KT_mapped]])
+print('Giá trị dự báo: ',predicted_Logic)
+
+--Câu 9
+
+correlation_matrix = pd.DataFrame(X_train).corr(method='pearson')
+correlation_matrix
+
+correlation_values = correlation_matrix.values.flatten()
+correlation_values = correlation_values[correlation_values != 1]
+closest_to_zero = min(correlation_values, key=abs)
+indices = np.where((correlation_matrix.values == closest_to_zero))
+row_index = indices[0][0]
+col_index = indices[1][0]
+result = (correlation_matrix.index[row_index], correlation_matrix.columns[col_index], closest_to_zero)
+print(result)
+
+--Câu 10
+from scipy.stats import kurtosis
+kurtosis(pd.DataFrame(y_test,columns=['y_test']))
+
+sns.histplot(data=pd.DataFrame(y_test,columns=['y_test']),x='y_test',color='red',label='Forecast',kde=True)
+plt.show()
+
+=> Line pp chuẩn và kurtosis < 3s

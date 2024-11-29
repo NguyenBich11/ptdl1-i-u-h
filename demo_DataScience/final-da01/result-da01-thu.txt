@@ -1,0 +1,158 @@
+--Tải thư viện cần thiết
+import pandas as pd
+import seaborn as sns
+import matplotlib.pyplot as plt
+import numpy as np
+
+from sklearn.model_selection import train_test_split
+from sklearn.pipeline import Pipeline
+from sklearn.linear_model import LinearRegression
+from sklearn.preprocessing import StandardScaler #z-score
+from sklearn.preprocessing import MinMaxScaler
+from sklearn.preprocessing import FunctionTransformer
+#log , căn, bậc 2 3, sigmoid
+from sklearn.preprocessing import PolynomialFeatures
+from sklearn import metrics
+
+--Nạp dữ liệu 
+df = pd.read_excel('mysales.xlsx',header=0)
+df.head(3)
+
+--Câu 1
+df.shape
+
+--Câu 2
+len(df.select_dtypes(include='int64').columns)
+
+--Câu 3
+df['Product Base Margin'].median()
+
+--Câu 4
+df.rename(columns={'Order Priority':'Priority','Shipping Mode':'Mode',
+                  'Unit Price':'Price','Shipping Cost':'ShipCost','Quantity ordered new':'Quantity'},inplace=True)
+df[['Discount','Price','ShipCost','Quantity','Sales']].iloc[20]
+
+--Câu 5
+from scipy.stats import skew
+max(
+    skew(df['Price']),
+    skew(df['Discount']),
+    skew(df['Quantity']),
+    skew(df['ShipCost']),
+    skew(df['Sales'])
+)
+
+--Câu 6
+correlation_matrix = df[['Discount', 'Price','ShipCost', 'Sales','Quantity']].corr(method='pearson')
+correlation_matrix
+
+--Lưu ý: mức độ tương quan chạy -1 => 0 => 1. Càng gần về 0 mức tương quan càng thấp, càng về 1 là thuận, càng về -1 là nghịch, số 0 là ko có tương quan.
+correlation_values = correlation_matrix.values.flatten()
+correlation_values = correlation_values[correlation_values != 1]
+closest_to_zero = min(correlation_values, key=abs)
+indices = np.where((correlation_matrix.values == closest_to_zero))
+row_index = indices[0][0]
+col_index = indices[1][0]
+result = (correlation_matrix.index[row_index], correlation_matrix.columns[col_index], closest_to_zero)
+print(result)
+
+--Câu 7
+df.isnull().sum()
+
+--Câu 8
+--Lệch trái: đầu chuông bên phải, lệch phải: đầu chuông bên trái, chuẩn: bám sát đường phân phối chuẩn.
+def createHistogram(input):
+    plt.figure(figsize=(6, 3))
+    sns.histplot(input, bins=30, kde=False, color='blue', stat='density')
+    mean = np.mean(input)
+    std_dev = np.std(input)
+    x = np.linspace(mean - 3*std_dev, mean + 3*std_dev, 100)
+    pdf = (1 / (std_dev * np.sqrt(2 * np.pi))) * np.exp(-0.5 * ((x - mean) / std_dev) ** 2)
+    # Vẽ đường phân phối chuẩn
+    plt.plot(x, pdf, color='red', linewidth=2, label='Phân phối chuẩn')
+    plt.legend()
+    plt.grid(True)
+    plt.show()
+createHistogram(df['Discount'])
+createHistogram(df['Price'])
+createHistogram(df['ShipCost'])
+createHistogram(df['Quantity'])
+createHistogram(df['Sales'])
+
+--Câu 9
+--Hoặc có thể dùng thư viện MinMaxScaler
+x=10.05
+z_score = (x - df['Discount'].mean()) / df['Discount'].std()
+print(z_score)
+
+--Câu 10
+sns.barplot(x='Ship Mode',y='Sales',hue='Region',data=df,errorbar=None)
+plt.show()
+
+--Xây dựng mô hình
+X=df[['Price', 'Quantity','ShipCost', 'Sales']].astype(float).values
+y=df['Discount'].astype(float).values
+X_train, X_test, y_train, y_test=train_test_split(X,y,test_size=0.2,random_state=16)
+
+--Đọc kĩ step
+steps=[('minmaxscaler',MinMaxScaler()),('model',LinearRegression())]
+
+pipe=Pipeline(steps)
+model=pipe.fit(X_train,y_train)
+model
+
+--Câu 11
+from scipy.stats import kurtosis
+kurtosis(pd.DataFrame(X_train))
+
+--Câu 12
+scaler = MinMaxScaler()
+scale_X_train = scaler.fit_transform(pd.DataFrame(X_train))
+sqrt_X_train = np.sqrt(scale_X_train)
+skew(pd.DataFrame(sqrt_X_train))
+
+
+steps2=[('minmaxscaler',MinMaxScaler()),('sqrttransform',FunctionTransformer(np.sqrt)),('model',LinearRegression())]
+pipe2=Pipeline(steps2)
+model=pipe2.fit(X_train,y_train)
+model
+
+--Câu 13
+model.named_steps['model'].coef_
+
+--Câu 14
+model.named_steps['model'].intercept_
+
+--Câu 15
+print('Score or R-Squared: ', model.score(X_train,y_train))
+print('Mean Absolute Error: ',metrics.mean_absolute_error(y_train,y_train_pred))
+print('Mean Squared Error: ',metrics.mean_squared_error(y_train,y_train_pred))
+print('Root Mean Squared Error: ',np.sqrt(metrics.mean_squared_error(y_train,y_train_pred)))
+print('Mean Absolute Percentage Error: ',metrics.mean_absolute_percentage_error(y_train,y_train_pred))
+
+--Câu 16
+print('Score or R-Squared: ', model.score(X_test,y_test))
+print('Mean Absolute Error: ',metrics.mean_absolute_error(y_test,y_test_pred))
+print('Mean Squared Error: ',metrics.mean_squared_error(y_test,y_test_pred))
+print('Root Mean Squared Error: ',np.sqrt(metrics.mean_squared_error(y_test,y_test_pred)))
+print('Mean Absolute Percentage Error: ',metrics.mean_absolute_percentage_error(y_test,y_test_pred))
+
+--Câu 17
+sns.scatterplot(x=y_train.flatten(), y=y_train_pred.flatten(), markers='o', color='b')
+sns.lineplot(x=y_train.flatten(), y=y_train.flatten(), markers='s', color='r')
+plt.title('Biểu đồ mô tả mô hình tập Training')
+plt.show()
+
+--Câu 18
+X_train.shape[1]
+
+--Câu 19
+price=18.98
+shipCost=8.51
+quantity=50.17
+sales=2.0
+predicted_Discount=pipe.predict([[price,quantity,shipCost,sales]])
+print('Giá trị dự báo điểm Discount: ',predicted_Discount)
+
+--Câu 20
+model.named_steps['model'].coef_[0:5]
